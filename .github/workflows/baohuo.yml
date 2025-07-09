@@ -42,16 +42,17 @@ jobs:
     # 5. 微信通知（无论成功/失败都推送）
     - name: 发送微信通知
       env:
-        WXP_TOKEN: "AT_8W0HaJDqsTjYPxgsyCdg5xxGU58e7a9q"  # 替换为你的真实Token
-        WXP_UID: "UID_pT7ifPmHs5ewHZcNXE9saeXCCopf"      # 替换为你的真实UID
+        WXP_TOKEN: "AT_8W0HaJDqsTjYPxgsyCdg5xxGU58e7a9q"
+        WXP_UID: "UID_pT7ifPmHs5ewHZcNXE9saeXCCopf"
       run: |
-        # 使用 curl 调用微信推送 API
+        # 使用中国时区格式化时间
+        CURRENT_TIME=$(TZ='Asia/Shanghai' date "+%Y-%m-%d %H:%M:%S CST")
         curl -s -X POST \
           "https://wxpusher.zjiecode.com/api/send/message" \
           -H "Content-Type: application/json" \
           -d '{
             "appToken": "'"$WXP_TOKEN"'",
-            "content": "保护货验证结果：\n\n${{ steps.run-script.outputs.message }}\n\n触发时间：$(date)",
+            "content": "保护货验证结果：\n\n${{ steps.run-script.outputs.message }}\n\n触发时间：'"$CURRENT_TIME"'",
             "contentType": 1,
             "uids": ["'"$WXP_UID"'"]
           }'
