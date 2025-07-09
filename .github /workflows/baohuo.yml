@@ -1,0 +1,56 @@
+name: 保护货验证工作流
+
+on:
+  # 自动定时运行（每天 UTC 8:00）
+  schedule:
+    - cron: "1 5,6,7,8 * * *"  # 北京时间 9:20, 13:20, 23:20
+  workflow_dispatch:
+jobs:
+  validate-baohuo:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # 1. 检出代码
+    - name: 拉取代码
+      uses: actions/checkout@v3
+
+    # 2. 设置 Node.js 环境
+    - name: 设置 Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    # 3. 安装依赖
+    - name: 安装依赖
+      run: npm install axios
+
+    # 4. 运行验证脚本
+    - name: 执行保护货验证
+      id: run-script  # 为后续步骤捕获输出
+      run: |
+        output=$(node baohuo.js)
+        echo "脚本输出：$output"
+        if echo "$output" | grep -q "IP通过"; then
+          echo "result=success" >> $GITHUB_OUTPUT
+          echo "message=✅ 验证成功：IP通过" >> $GITHUB_OUTPUT
+        else
+          echo "result=failure" >> $GITHUB_OUTPUT
+          echo "message=❌ 验证失败：IP未通过" >> $GITHUB_OUTPUT
+        fi
+
+    # 5. 微信通知（无论成功/失败都推送）
+    - name: 发送微信通知
+      env:
+        WXP_TOKEN: "AT_8W0HaJDqsTjYPxgsyCdg5xxGU58e7a9q"  # 替换为你的真实Token
+        WXP_UID: "UID_pT7ifPmHs5ewHZcNXE9saeXCCopf"      # 替换为你的真实UID
+      run: |
+        # 使用 curl 调用微信推送 API
+        curl -s -X POST \
+          "https://wxpusher.zjiecode.com/api/send/message" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "appToken": "'"$WXP_TOKEN"'",
+            "content": "保护货验证结果：\n\n${{ steps.run-script.outputs.message }}\n\n触发时间：$(date)",
+            "contentType": 1,
+            "uids": ["'"$WXP_UID"'"]
+          }'
