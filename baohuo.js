@@ -56,8 +56,8 @@ async function main() {
 
     // 返回GitHub Actions兼容的输出
     return {
-        result: passedCount > 0 ? 'success' : 'failure',
-        message: summary,  // 现在是单行文本
+        result: passedCount === servers.length ? 'success' : 'partial_failure',
+        message: `通过:${passedCount}个 失败:${results.length - passedCount}个 异常:${results.filter(r => r.status.includes('⚠️')).length}个`,
         details: JSON.stringify(results)
     };
 }
