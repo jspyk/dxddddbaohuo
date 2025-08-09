@@ -47,38 +47,29 @@ async function main() {
     for (const server of servers) {
         const result = await checkServer(server);
         results.push(result);
-        console.log(`${server} => ${result.status}`); // 实时打印进度
+        console.log(`${server} => ${result.status}`);
     }
 
-    // 汇总统计
+    // 汇总统计（单行文本，避免换行符）
     const passedCount = results.filter(r => r.status.includes('✅')).length;
-    const summary = `
-    ======== 验证结果汇总 ========
-    ✅ 通过: ${passedCount} 个
-    ❌ 失败: ${results.length - passedCount} 个
-    ⚠️ 异常: ${results.filter(r => r.status.includes('⚠️')).length} 个
-    ============================
-    `;
-    console.log(summary);
+    const summary = `✅通过:${passedCount}个 ❌失败:${results.length - passedCount}个 ⚠️异常:${results.filter(r => r.status.includes('⚠️')).length}个`;
 
-    // 返回给GitHub Actions的格式化结果
+    // 返回GitHub Actions兼容的输出
     return {
         result: passedCount > 0 ? 'success' : 'failure',
-        message: summary,
-        details: JSON.stringify(results, null, 2)
+        message: summary,  // 现在是单行文本
+        details: JSON.stringify(results)
     };
 }
 
-// 执行并捕获输出
+// 输出到GitHub Actions（严格遵循格式）
 main().then(output => {
     console.log(output.message);
-    console.log('详细结果:', output.details);
-    // GitHub Actions输出
     if (process.env.GITHUB_ACTIONS) {
-        require('fs').appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `result=${output.result}\nmessage=${output.message}\n`
-        );
+        const fs = require('fs');
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `result=${output.result}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `message=${output.message}\n`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `details<<EOF\n${output.details}\nEOF\n`);
     }
 }).catch(err => {
     console.error('全局错误:', err);
