@@ -41,43 +41,43 @@ async function checkServer(serverUrl) {
     }
 }
 
-// 主函数：验证所有服务器并汇总结果
 async function main() {
-    const results = [];
-    for (const server of servers) {
-        const result = await checkServer(server);
-        results.push(result);
-        console.log(`${server} => ${result.status}`);
+    try {
+        const results = [];
+        let passedCount = 0;
+        
+        // 逐个验证服务器
+        for (const server of servers) {
+            const result = await checkServer(server);
+            results.push(result);
+            if (result.status.includes('✅')) passedCount++;
+            console.log(`${server} => ${result.status}`); // 实时日志
+        }
+
+        // 统计结果
+        const failedCount = results.filter(r => r.status.includes('❌')).length;
+        const errorCount = results.filter(r => r.status.includes('⚠️')).length;
+        
+        return {
+            summary: `通过=${passedCount}_失败=${failedCount}_异常=${errorCount}`,
+            details: JSON.stringify(results, null, 2)
+        };
+        
+    } catch (err) {
+        return {
+            summary: "通过=0_失败=0_异常=0",
+            details: JSON.stringify({error: err.message})
+        };
     }
-
-    // 汇总统计（单行文本，避免换行符）
-    const passedCount = results.filter(r => r.status.includes('✅')).length;
-    const summary = `✅通过:${passedCount}个 ❌失败:${results.length - passedCount}个 ⚠️异常:${results.filter(r => r.status.includes('⚠️')).length}个`;
-
-    // 返回GitHub Actions兼容的输出
-    return {
-        // 用下划线代替空格和换行
-        summary: `通过=${passedCount}_失败=${results.length - passedCount}_异常=${results.filter(r => r.status.includes('⚠️')).length}`,
-        // 原始数据用于微信通知
-        details: JSON.stringify({
-            passed: passedCount,
-            failed: results.length - passedCount,
-            errors: results.filter(r => r.status.includes('⚠️')).length,
-            servers: results.map(r => `${r.server}=>${r.status}`)
-        })
-    };
 }
 
-// 输出到GitHub Actions（严格遵循格式）
-main().then(output => {
-    console.log(output.message);
-    if (process.env.GITHUB_ACTIONS) {
-        const fs = require('fs');
-        fs.appendFileSync(process.env.GITHUB_OUTPUT, `result=${output.result}\n`);
-        fs.appendFileSync(process.env.GITHUB_OUTPUT, `message=${output.message}\n`);
-        fs.appendFileSync(process.env.GITHUB_OUTPUT, `details<<EOF\n${output.details}\nEOF\n`);
-    }
-}).catch(err => {
-    console.error('全局错误:', err);
-    process.exit(1);
-});
+// 执行并输出
+main()
+    .then(output => {
+        console.log(output.summary);  // 示例: "通过=9_失败=1_异常=1"
+        console.log("details=" + output.details); // 结构化数据
+    })
+    .catch(err => {
+        console.error("全局错误:", err);
+        process.exit(1);
+    });
