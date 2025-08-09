@@ -56,9 +56,15 @@ async function main() {
 
     // 返回GitHub Actions兼容的输出
     return {
-        result: passedCount === servers.length ? 'success' : 'partial_failure',
-        message: `通过:${passedCount}个 失败:${results.length - passedCount}个 异常:${results.filter(r => r.status.includes('⚠️')).length}个`,
-        details: JSON.stringify(results)
+        // 用下划线代替空格和换行
+        summary: `通过=${passedCount}_失败=${results.length - passedCount}_异常=${results.filter(r => r.status.includes('⚠️')).length}`,
+        // 原始数据用于微信通知
+        details: JSON.stringify({
+            passed: passedCount,
+            failed: results.length - passedCount,
+            errors: results.filter(r => r.status.includes('⚠️')).length,
+            servers: results.map(r => `${r.server}=>${r.status}`)
+        })
     };
 }
 
