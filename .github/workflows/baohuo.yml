@@ -52,7 +52,7 @@ jobs:
           -H "Content-Type: application/json" \
           -d '{
             "appToken": "'"$WXP_TOKEN"'",
-            "content": "保护货验证结果：\n\n${{ steps.run-script.outputs.message }}\n\n触发时间：'"$CURRENT_TIME"'",
+            "content": "保护验证结果：\n\n${{ steps.run-script.outputs.message }}\n\n触发时间：'"$CURRENT_TIME"'",
             "contentType": 1,
             "uids": ["'"$WXP_UID"'"]
           }'
