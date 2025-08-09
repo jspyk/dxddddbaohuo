@@ -29,31 +29,16 @@ jobs:
     - name: 执行保护货验证
       id: run-script
       run: |
-        # 捕获脚本输出（忽略stderr中的进度日志）
-        output=$(node baohuo.js 2>&1 | grep -v '=>')  # 过滤掉实时服务器状态行
+        output=$(node baohuo.js)
         echo "脚本原始输出：$output"
         
         # 提取标准化结果
         SUMMARY=$(echo "$output" | grep -oP "通过=\d+_失败=\d+_异常=\d+")
         DETAILS=$(echo "$output" | grep -oP "details=.+")
         
-        # 解析统计数字
-        PASSED=$(echo "$SUMMARY" | cut -d'_' -f1 | cut -d'=' -f2)
-        FAILED=$(echo "$SUMMARY" | cut -d'_' -f2 | cut -d'=' -f2)
-        ERRORS=$(echo "$SUMMARY" | cut -d'_' -f3 | cut -d'=' -f2)
-        
-        # 动态生成通知消息
-        if [ "$FAILED" -gt 0 ] || [ "$ERRORS" -gt 0 ]; then
-          RESULT="failure"
-          MSG="⚠️ 验证异常 (通过:$PASSED 失败:$FAILED 异常:$ERRORS)"
-        else
-          RESULT="success"
-          MSG="✅ 全部通过 ($PASSED个)"
-        fi
-        
-        # 严格输出到GitHub Actions
-        echo "result=$RESULT" >> $GITHUB_OUTPUT
-        echo "message=$MSG" >> $GITHUB_OUTPUT
+        # 设置GitHub Actions输出
+        echo "result=$(echo "$SUMMARY" | grep -q "失败=0_异常=0" && echo 'success' || echo 'failure')" >> $GITHUB_OUTPUT
+        echo "message=$(echo "$SUMMARY" | sed 's/_/ /g')" >> $GITHUB_OUTPUT
         echo "$DETAILS" >> $GITHUB_OUTPUT
 
     # 5. 微信通知（无论成功/失败都推送）
