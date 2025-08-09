@@ -11,7 +11,7 @@ const servers = [
     'https://dxocr7-ocr.hf.space/ocr',
     'https://dxocr8-ocr.hf.space/ocr',
     'https://dxocr9-ocr.hf.space/ocr',
-    'https://dxocr10-ocr.hf.space/ocr'
+    'https://dxocr101-ocr.hf.space/ocr'
 ];
 
 // 验证单个服务器
