@@ -47,25 +47,25 @@ jobs:
         WXP_TOKEN: "AT_8W0HaJDqsTjYPxgsyCdg5xxGU58e7a9q"
         WXP_UID: "UID_pT7ifPmHs5ewHZcNXE9saeXCCopf"
       run: |
-        # 解析原始数据中的服务器状态
-        RAW_DETAILS='${{ steps.run-script.outputs.details }}'
-        SERVER_STATUS=$(echo "$RAW_DETAILS" | jq -r '.[] | "\(.server): \(.status)"' | paste -sd "\n" -)
+        # 安全解析details（处理转义字符）
+        DETAILS='${{ steps.run-script.outputs.details }}'
+        SAFE_DETAILS=$(echo "$DETAILS" | jq -aR '.')  # -aR表示原始输入+ASCII输出
         
-        # 构建通知内容
+        # 构建通知内容（显式处理换行）
         CONTENT="保护验证报告：
         ${{ steps.run-script.outputs.message }}
         --------------------------
         服务器状态：
-        ${SERVER_STATUS}
+        $(echo "$SAFE_DETAILS" | jq -r 'fromjson[] | "\(.server): \(.status)"')
         --------------------------
         时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
         
-        # 发送通知（含换行符处理）
+        # 发送通知（双重转义）
         curl -X POST "https://wxpusher.zjiecode.com/api/send/message" \
           -H "Content-Type: application/json" \
           -d '{
             "appToken": "'"$WXP_TOKEN"'",
-            "content": "'"$(echo "$CONTENT" | sed 's/"/\\"/g')"'",
+            "content": "'"$(echo "$CONTENT" | sed 's/"/\\"/g; s/\n/\\n/g')"'",
             "contentType": 1,
             "uids": ["'"$WXP_UID"'"]
           }'
