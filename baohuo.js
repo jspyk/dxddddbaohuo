@@ -58,9 +58,12 @@ async function main() {
         const failedCount = results.filter(r => r.status.includes('❌')).length;
         const errorCount = results.filter(r => r.status.includes('⚠️')).length;
         
+        // 在main()函数返回前对details做转义处理
         return {
             summary: `通过=${passedCount}_失败=${failedCount}_异常=${errorCount}`,
-            details: JSON.stringify(results, null, 2)
+            details: JSON.stringify(results)
+                .replace(/\n/g, '\\n')  // 转义换行符
+                .replace(/\r/g, '\\r')  // 转义回车符
         };
         
     } catch (err) {
