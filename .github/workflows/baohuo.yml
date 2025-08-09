@@ -26,34 +26,35 @@ jobs:
       run: npm install axios
 
     # 4. 运行验证脚本
-    - name: 执行保活验证
+    - name: 执行保护货验证
       id: run-script
       run: |
-        output=$(node baohuo.js)
+        # 捕获脚本输出（忽略stderr中的进度日志）
+        output=$(node baohuo.js 2>&1 | grep -v '=>')  # 过滤掉实时服务器状态行
         echo "脚本原始输出：$output"
         
-        # 提取标准化输出（示例：通过=9_失败=1_异常=1）
+        # 提取标准化结果
         SUMMARY=$(echo "$output" | grep -oP "通过=\d+_失败=\d+_异常=\d+")
         DETAILS=$(echo "$output" | grep -oP "details=.+")
         
-        # 解析统计结果
+        # 解析统计数字
         PASSED=$(echo "$SUMMARY" | cut -d'_' -f1 | cut -d'=' -f2)
         FAILED=$(echo "$SUMMARY" | cut -d'_' -f2 | cut -d'=' -f2)
         ERRORS=$(echo "$SUMMARY" | cut -d'_' -f3 | cut -d'=' -f2)
         
-        # 设置动态通知消息
-        if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
-          MSG="✅ 全部通过 (${PASSED}个)"
-        elif [ "$PASSED" -eq 0 ]; then
-          MSG="❌ 全部失败 (${FAILED}个失败 ${ERRORS}个异常)"
+        # 动态生成通知消息
+        if [ "$FAILED" -gt 0 ] || [ "$ERRORS" -gt 0 ]; then
+          RESULT="failure"
+          MSG="⚠️ 验证异常 (通过:$PASSED 失败:$FAILED 异常:$ERRORS)"
         else
-          MSG="⚠️ 部分通过 (${PASSED}个通过 ${FAILED}个失败 ${ERRORS}个异常)"
+          RESULT="success"
+          MSG="✅ 全部通过 ($PASSED个)"
         fi
         
-        # 严格遵循GitHub输出格式
-        echo "result=$([ "$FAILED" -eq 0 ] && echo 'success' || echo 'failure')" >> $GITHUB_OUTPUT
-        echo "message=${MSG}" >> $GITHUB_OUTPUT
-        echo "${DETAILS}" >> $GITHUB_OUTPUT
+        # 严格输出到GitHub Actions
+        echo "result=$RESULT" >> $GITHUB_OUTPUT
+        echo "message=$MSG" >> $GITHUB_OUTPUT
+        echo "$DETAILS" >> $GITHUB_OUTPUT
 
     # 5. 微信通知（无论成功/失败都推送）
     - name: 发送微信通知
@@ -61,17 +62,25 @@ jobs:
         WXP_TOKEN: "AT_8W0HaJDqsTjYPxgsyCdg5xxGU58e7a9q"
         WXP_UID: "UID_pT7ifPmHs5ewHZcNXE9saeXCCopf"
       run: |
-        CURRENT_TIME=$(TZ='Asia/Shanghai' date "+%Y-%m-%d %H:%M:%S")
-        # 从原始数据构建详细报告
-        DETAILS=$(echo '${{ steps.run-script.outputs.details }}' | jq -r '.servers | join("\n")')
-        CONTENT="保护验证结果：\n${{ steps.run-script.outputs.message }}\n\n服务器状态：\n${DETAILS}\n\n时间：${CURRENT_TIME}"
+        # 解析原始数据中的服务器状态
+        RAW_DETAILS='${{ steps.run-script.outputs.details }}'
+        SERVER_STATUS=$(echo "$RAW_DETAILS" | jq -r '.[] | "\(.server): \(.status)"' | paste -sd "\n" -)
         
-        curl -X POST \
-          "https://wxpusher.zjiecode.com/api/send/message" \
+        # 构建通知内容
+        CONTENT="保护验证报告：
+        ${{ steps.run-script.outputs.message }}
+        --------------------------
+        服务器状态：
+        ${SERVER_STATUS}
+        --------------------------
+        时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
+        
+        # 发送通知（含换行符处理）
+        curl -X POST "https://wxpusher.zjiecode.com/api/send/message" \
           -H "Content-Type: application/json" \
           -d '{
             "appToken": "'"$WXP_TOKEN"'",
-            "content": "'"${CONTENT}"'",
+            "content": "'"$(echo "$CONTENT" | sed 's/"/\\"/g')"'",
             "contentType": 1,
             "uids": ["'"$WXP_UID"'"]
           }'
