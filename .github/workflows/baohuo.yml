@@ -27,17 +27,24 @@ jobs:
 
     # 4. 运行验证脚本
     - name: 执行保护货验证
-      id: run-script  # 为后续步骤捕获输出
+      id: run-script
       run: |
         output=$(node baohuo.js)
         echo "脚本输出：$output"
-        if echo "$output" | grep -q "IP通过"; then
+        # 提取统计结果（示例输出："通过:9个 失败:1个 异常:1个"）
+        stats=$(echo "$output" | grep -oP "通过:\d+个 失败:\d+个 异常:\d+个")
+        # 根据结果设置状态
+        if echo "$output" | grep -q "失败:0个 异常:0个"; then
           echo "result=success" >> $GITHUB_OUTPUT
-          echo "message=✅ 验证成功：IP通过" >> $GITHUB_OUTPUT
-        else
+          echo "message=✅ 全部通过 ($stats)" >> $GITHUB_OUTPUT
+        elif echo "$output" | grep -q "通过:0个"; then
           echo "result=failure" >> $GITHUB_OUTPUT
-          echo "message=❌ 验证失败：IP未通过" >> $GITHUB_OUTPUT
+          echo "message=❌ 全部失败 ($stats)" >> $GITHUB_OUTPUT
+        else
+          echo "result=partial_failure" >> $GITHUB_OUTPUT
+          echo "message=⚠️ 部分通过 ($stats)" >> $GITHUB_OUTPUT
         fi
+        echo "details=${output}" >> $GITHUB_OUTPUT
 
     # 5. 微信通知（无论成功/失败都推送）
     - name: 发送微信通知
@@ -45,14 +52,15 @@ jobs:
         WXP_TOKEN: "AT_8W0HaJDqsTjYPxgsyCdg5xxGU58e7a9q"
         WXP_UID: "UID_pT7ifPmHs5ewHZcNXE9saeXCCopf"
       run: |
-        # 使用中国时区格式化时间
         CURRENT_TIME=$(TZ='Asia/Shanghai' date "+%Y-%m-%d %H:%M:%S CST")
+        # 构建更详细的通知内容
+        CONTENT="保护验证结果：\n\n${{ steps.run-script.outputs.message }}\n\n详细统计：\n${{ steps.run-script.outputs.details }}\n\n触发时间：$CURRENT_TIME"
         curl -s -X POST \
           "https://wxpusher.zjiecode.com/api/send/message" \
           -H "Content-Type: application/json" \
           -d '{
             "appToken": "'"$WXP_TOKEN"'",
-            "content": "保护验证结果：\n\n${{ steps.run-script.outputs.message }}\n\n触发时间：'"$CURRENT_TIME"'",
+            "content": "'"${CONTENT}"'",
             "contentType": 1,
             "uids": ["'"$WXP_UID"'"]
           }'
