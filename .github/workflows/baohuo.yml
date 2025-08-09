@@ -1,71 +1,61 @@
-
 name: 保活验证工作流
 
 on:
-  # 自动定时运行（每天 UTC 8:00）
   schedule:
-    - cron: "1 5,6,7,8 * * *"  # 北京时间 9:20, 13:20, 23:20
+    - cron: "1 5,6,7,8 * * *"
   workflow_dispatch:
+
 jobs:
   validate-baohuo:
     runs-on: ubuntu-latest
     
     steps:
-    # 1. 检出代码
     - name: 拉取代码
       uses: actions/checkout@v3
 
-    # 2. 设置 Node.js 环境
     - name: 设置 Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
 
-    # 3. 安装依赖
     - name: 安装依赖
       run: npm install axios
 
-    # 4. 运行验证脚本
     - name: 执行保护货验证
       id: run-script
       run: |
-        output=$(node baohuo.js)
-        echo "脚本原始输出：$output"
+        # 过滤掉实时日志，只捕获最终输出
+        output=$(node baohuo.js | tail -n 2)
+        echo "脚本输出：$output"
         
         # 提取标准化结果
-        SUMMARY=$(echo "$output" | grep -oP "通过=\d+_失败=\d+_异常=\d+")
-        DETAILS=$(echo "$output" | grep -oP "details=.+")
+        SUMMARY=$(echo "$output" | head -n 1)
+        DETAILS=$(echo "$output" | tail -n 1 | sed 's/details=//')
         
         # 设置GitHub Actions输出
         echo "result=$(echo "$SUMMARY" | grep -q "失败=0_异常=0" && echo 'success' || echo 'failure')" >> $GITHUB_OUTPUT
         echo "message=$(echo "$SUMMARY" | sed 's/_/ /g')" >> $GITHUB_OUTPUT
-        echo "$DETAILS" >> $GITHUB_OUTPUT
+        echo "details=${DETAILS}" >> $GITHUB_OUTPUT
 
-    # 5. 微信通知（无论成功/失败都推送）
     - name: 发送微信通知
       env:
         WXP_TOKEN: "AT_8W0HaJDqsTjYPxgsyCdg5xxGU58e7a9q"
         WXP_UID: "UID_pT7ifPmHs5ewHZcNXE9saeXCCopf"
       run: |
-        # 安全解析details（处理转义字符）
-        DETAILS='${{ steps.run-script.outputs.details }}'
-        SAFE_DETAILS=$(echo "$DETAILS" | jq -aR '.')  # -aR表示原始输入+ASCII输出
+        # 构建通知内容（所有特殊字符转义）
+        CONTENT=$(printf '保护验证报告：\n%s\n\n服务器状态：\n%s\n\n时间：%s' \
+          "${{ steps.run-script.outputs.message }}" \
+          "$(echo '${{ steps.run-script.outputs.details }}' | jq -r '.[] | "\(.server): \(.status)"' | paste -sd '\n' -)" \
+          "$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
+        )
         
-        # 构建通知内容（显式处理换行）
-        CONTENT="保护验证报告：
-        ${{ steps.run-script.outputs.message }}
-        --------------------------
-        服务器状态：
-        $(echo "$SAFE_DETAILS" | jq -r 'fromjson[] | "\(.server): \(.status)"')
-        --------------------------
-        时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
-        
-        # 发送通知（双重转义）
+        # 双重转义后发送
+        ESCAPED_CONTENT=$(echo "$CONTENT" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
         curl -X POST "https://wxpusher.zjiecode.com/api/send/message" \
           -H "Content-Type: application/json" \
           -d '{
             "appToken": "'"$WXP_TOKEN"'",
-            "content": "'"$(echo "$CONTENT" | sed 's/"/\\"/g; s/\n/\\n/g')"'",
+            "content": "'"${ESCAPED_CONTENT}"'",
             "contentType": 1,
             "uids": ["'"$WXP_UID"'"]
           }'
