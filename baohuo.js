@@ -3,6 +3,8 @@ const axios = require('axios');
 // 所有待验证的服务器列表
 const servers = [
     'https://rui-shu-dxddddocr.hf.space/ocr',
+    'https://rui-shu2-1-dxddddocr.hf.space/ocr',
+    'https://dxocr1-ocr.hf.space/ocr',
     'https://dxocr2-ocr.hf.space/ocr',
     'https://dxocr3-ocr.hf.space/ocr',
     'https://dxocr4-ocr.hf.space/ocr',
